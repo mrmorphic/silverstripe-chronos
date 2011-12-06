@@ -22,7 +22,13 @@
  * 							to changes in calendar.
  * - tolerance=n			Specifies the number of seconds of tolerance. A scheduled action will execute if
  * 							its date/time is the current time, or up to 'tolerance' seconds late.
- * - time_limit=n			If specified, sets the execution time limit to n seconds. If 0, unlimited time.
+ * - time_limit=n			If specified, sets the execution time limit to n seconds. If 0, unlimited time. Useful
+ * 							for limited execution in unit tests
+ * - resolution=n			Resolution of execution. Determines the number of seconds that the daemon sleeps between
+ * 							when it checks if there is work to do. The smaller the number, the more accurately the
+ * 							execution, but possibly with a small increase in server load. If this is small, tolerance
+ * 							should be several times higher. For larger values of resolution, the ratio can be reduced
+ * 							but tolerance should always be higher.
  */
 
 class ChronosDaemon {
@@ -30,7 +36,8 @@ class ChronosDaemon {
 	var $params = array(
 		"config_refresh"	=> 30,
 		"time_limit"		=> 0,		// no time limit by default
-		"tolerance"			=> 10
+		"tolerance"			=> 10,
+		"resolution"		=> 1
 	);
 
 	var $confs = array();
@@ -248,35 +255,18 @@ class ChronosDaemon {
 //		echo "nextRefreshTime is " . print_r($nextRefreshTime, true) . "\n";
 
 		$endTime = $this->params["time_limit"] > 0 ? time() + $this->params["time_limit"] : false;
+		$bedtime = $this->params["resolution"];
+
 echo "start time is " . date("H:i:s", time()) . "\n";
 echo "end time is " . date("H:i:s", $endTime) . "\n";
 
 		echo "about to start\n";
 
 		while(true) {
-//			$nextActionTime = $this->determineNextEventFromSchedule();
-////			echo "nextActionTime is " . print_r($nextActionTime,true) . "\n";
-////			echo "nextRefreshTime is " . print_r($nextRefreshTime, true) . "\n";
-////			echo "time now is " . print_r(time(), true) . "\n";
-
-			// maybe there are no actions yet
-//			if ($nextActionTime == 0)
-//				$waitUntil = $nextRefreshTime;
-//			else
-//				$waitUntil = min($nextActionTime, $nextRefreshTime);
-
-			// only sleep if we're not once-only.
-//			if (!$this->params["once_only"]) {
-//				$s = $waitUntil - time();
-//				if ($s < 1) $s = 1;
-//				sleep($s);
-//			}
-
 			// OK, when we wake up, we need to process any scheduled actions that need to be executed now.
 			$this->executeDueActions();
 
 			if ($endTime && $endTime < time()) break;
-//			if ($this->params["once_only"]) break;
 
 			// If we are due to refresh the schedule from the file system, do that now.
 			if (time() > $nextRefreshTime) {
@@ -284,7 +274,9 @@ echo "end time is " . date("H:i:s", $endTime) . "\n";
 				$nextRefreshTime = time() + $this->params["config_refresh"];
 			}
 
-			sleep(2);
+			// time for milk
+			sleep($bedtime);
+			// time for coffee
 		}
 	}
 }
@@ -292,11 +284,3 @@ echo "end time is " . date("H:i:s", $endTime) . "\n";
 echo "Starting daemon\n";
 $daemon = new ChronosDaemon();
 $daemon->execute($argv);
-
-/**----------------------------------------------------------------------------------------------------**/
-/*
-
-// Filter out those that are not in this process's execution window. While we do it, we augment the remaining
-// conf entries with addition properties for later.
-
-*/
