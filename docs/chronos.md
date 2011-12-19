@@ -91,7 +91,7 @@ their own schedules that don't interfere with each other.
 
 To remove all scheduled actions with that identifier:
 
-	Chronos::remove("myfancyschedule");
+	Chronos::remove("my-fabulous-schedule");
 
 This will only remove those with the identifier.
 
@@ -153,7 +153,27 @@ The following options are used to control what to execute:
 
 ## Replacing Scheduled Actions
 
+You can replace all scheduled actions that have a given identifier with a new set of actions in one call:
+
+	Chronos::replace(array(
+		new ChronosScheduledAction(
+			array(
+				"timeSpecification" => "1-jan-2013 9:00",
+				"actionType" => "method",
+				"method" => 'MyClass::my_method'
+			)
+		)
+	), "my-fabulous-schedule");
+
+An optional third parameter can be passed which allows you to use a new identifier to store the new actions.
+
 ## Removing Scheduled Actions
+
+Actions can only be removed from the schedule by supplying the identifier that groups them:
+
+	Chronos::remove("my-fabulous-schedule");
+
+Note that single execution actions are automatically removed from the schedule by the daemon once they are executed.
 
 ## Using an Alternative Temp Location
 
@@ -181,6 +201,9 @@ The daemon looks for command line options of the form name=value. It's options i
 
 ## Timing Considerations
 
+* The module has no way to ensure that a recurring action has finished before initiating it again. It is the
+  developer's responsibility to handle this appropriately.
+
 ## Security Considerations
 
 The daemon invokes static methods by running sake to execute Chronos/execmethod, and passes the parameters of the
@@ -206,7 +229,5 @@ execute every minute, and designed to be extremely light-weight.
 
 * Chronos/execmethod is not blocked to web access. It should probably ensure that it only runs from the command
   line, and check that this works when the daemon calls it.
-* The module has no way to ensure that a recurring action has finished before initiating it again. It is the
-  developer's responsibility to handle this appropriately.
 * byday, byhour and byminute are not yet implemented in the daemon.
 * ::remove() is currently not implemented.
