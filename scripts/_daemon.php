@@ -257,8 +257,8 @@ class ChronosDaemon {
 		$endTime = $this->params["time_limit"] > 0 ? time() + $this->params["time_limit"] : false;
 		$bedtime = $this->params["resolution"];
 
-echo "start time is " . date("H:i:s", time()) . "\n";
-echo "end time is " . date("H:i:s", $endTime) . "\n";
+// echo "start time is " . date("H:i:s", time()) . "\n";
+// echo "end time is " . date("H:i:s", $endTime) . "\n";
 
 		echo "about to start\n";
 
