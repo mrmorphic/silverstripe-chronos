@@ -62,6 +62,7 @@ class ChronosDaemon {
 	/**
 	 * Return the timestamp of the next scheduled action to be executed.
 	 * @return void
+	 * @todo This can be removed
 	 */
 	function determineNextEventFromSchedule() {
 		$result = 0;
@@ -112,15 +113,51 @@ class ChronosDaemon {
 
 		$start = strtotime($timeSpec->startTime);
 
-		if ($start > $baseTime) return array("prev" => null, "next" => $start);  // start in future
+		if ($start > $baseTime) {
+			$prev = null;
+			$next = $start;
+		}
+		else {
+			$delta = $baseTime - $start; // difference between start and now.
+			$t = $delta % $period;
+			$prev = $baseTime - $t;
+			$next = $prev + $period;
+		}
 
-		// @todo take into account byday, byhour, byminute
+		// Take into account byday, byhour, byminute. We just apply these to prev (if defined) and next. If either
+		// doesn't match any of the constraints, just set them to null rather than trying to work out the next
+		// time, since it will be out of range.
+		$next = $this->filterByTimespec($next, $timeSpec);
+		$prev = $this->filterByTimespec($prev, $timeSpec);
 
-		$delta = $baseTime - $start; // difference between start and now.
-		$t = $delta % $period;
-		$prev = $baseTime - $t;
-		$next = $prev + $period;
 		return array("prev" => $prev, "next" => $next);
+	}
+
+	/**
+	 * Filter a time by the byday, byhour and byminute options of $timeSpec, as appropriate.
+	 * If a filter is present and the time fails to meet it's condition, return null. Otherwise
+	 * return $time.
+	 * @param $time
+	 * @param $timeSpec
+	 * @return void
+	 */
+	function filterByTimespec($time, $timeSpec) {
+		$bits = getdate($time);
+		if (isset($timeSpec->byday)) {
+			if (!is_array($timeSpec->byday)) return null; // don't match. this should not happen but protects against bad data.
+			$days = array("su","mo","tu","we","th","fr","sa"); // 0=sunday
+			$day = $days[$bits["wday"]];
+			if (!in_array($day, $timeSpec->byday)) return null;
+		}
+		if (isset($timeSpec->byhour)) {
+			if (!is_array($timeSpec->byhour)) return null;
+			if (!in_array($bits["hours"], $timeSpec->byhour)) return null;
+		}
+		if (isset($timeSpec->byminute)) {
+			if (!is_array($timeSpec->byminute)) return null;
+			if (!in_array($bits["minutes"], $timeSpec->byminute)) return null;
+		}
+		return $time;
 	}
 
 	/**
@@ -149,7 +186,7 @@ class ChronosDaemon {
 				$np = $this->determinePrevNextRecurrence($t, $now);
 				echo "(" . date("H:i:s", $np["prev"]) . "," . date("H:i:s", $np["next"]) . ") at " . date("H:i:s", $now) . "\n";
 
-				if ($np["next"] == $now) $execute = true;
+				if (isset($np["next"]) && $np["next"] == $now) $execute = true;
 				else if ($np["prev"] && $np["prev"] >= ($now - $this->params["tolerance"])) {
 					// If the previous scheduled execution point is defined, and is within the tolerance for execution,
 					// and its last execution time is less than the previous scheduled execution, then we haven't executed

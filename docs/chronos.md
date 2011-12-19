@@ -229,5 +229,4 @@ execute every minute, and designed to be extremely light-weight.
 
 * Chronos/execmethod is not blocked to web access. It should probably ensure that it only runs from the command
   line, and check that this works when the daemon calls it.
-* byday, byhour and byminute are not yet implemented in the daemon.
 * ::remove() is currently not implemented.
