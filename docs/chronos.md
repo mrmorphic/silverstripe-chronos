@@ -168,12 +168,16 @@ on startup, and the directory must be writable by the Apache user.
 
 The daemon looks for command line options of the form name=value. It's options include:
 
-* temp (no default, required) - full path to the directory where schedule is stored.
-* config_refresh (default 30) - the number of seconds between reloading the schedule from the file system.
-* tolerance (default 10) - Specifies the number of seconds of tolerance. A scheduled action will execute if
-  its date/time is the current time, or up to 'tolerance' seconds late.
-* time_limit (default 0) - the number of seconds for the daemon to execute. 0 indicates no limit. This is mostly
-  used by unit tests.
+* temp - (no default, required) full path to the directory where schedule is stored.
+* resolution - (default 1) Resolution of execution. Determines the number of seconds that the daemon sleeps between
+			when it checks if there is work to do. The smaller the number, the more accurately the execution, but
+			possibly with a small increase in server load. If this is small, tolerance should be several times higher.
+			For larger values of resolution, the ratio can be reduced but tolerance should always be higher.
+* config_refresh - (default 30) the number of seconds between reloading the schedule from the file system.
+* tolerance - (default 10) Specifies the number of seconds of tolerance. A scheduled action will execute if
+			its date/time is the current time, or up to 'tolerance' seconds late.
+* time_limit - (default 0) the number of seconds for the daemon to execute. 0 indicates no limit. This is mostly
+			used by unit tests.
 
 ## Timing Considerations
 
