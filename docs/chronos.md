@@ -34,7 +34,7 @@ executes all actions in subprocesses so that it's timing is not affected.
 * Any functions in your project that need actions executed to a schedule need to call the API to define the schedule
   (and redefine it as and when necessary)
 * Add execution of the daemon to system startup. This should be run as the same user as apache. Use a command like:
-  sudo -u www-data php /path_to_site/chronos/scripts/_daemon.php temp=/path_to_ss_temp
+  sudo -u www-data /path_to_site/chronos/scripts/chronos-daemon.sh temp=/path_to_ss_temp
 
 # Usage
 
