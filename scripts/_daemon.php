@@ -22,13 +22,7 @@
  * 							to changes in calendar.
  * - tolerance=n			Specifies the number of seconds of tolerance. A scheduled action will execute if
  * 							its date/time is the current time, or up to 'tolerance' seconds late.
- * - time_limit=n			If specified, sets the execution time limit to n seconds. If 0, unlimited time. Useful
- * 							for limited execution in unit tests
- * - resolution=n			Resolution of execution. Determines the number of seconds that the daemon sleeps between
- * 							when it checks if there is work to do. The smaller the number, the more accurately the
- * 							execution, but possibly with a small increase in server load. If this is small, tolerance
- * 							should be several times higher. For larger values of resolution, the ratio can be reduced
- * 							but tolerance should always be higher.
+ * - time_limit=n			If specified, sets the execution time limit to n seconds. If 0, unlimited time.
  */
 
 class ChronosDaemon {
@@ -36,8 +30,7 @@ class ChronosDaemon {
 	var $params = array(
 		"config_refresh"	=> 30,
 		"time_limit"		=> 0,		// no time limit by default
-		"tolerance"			=> 10,
-		"resolution"		=> 1
+		"tolerance"			=> 10
 	);
 
 	var $confs = array();
@@ -50,19 +43,17 @@ class ChronosDaemon {
 	function refreshActionStructure() {
 		// Grab all the files to process
 		$this->confs = array();
-		foreach (glob($this->params['temp'] . "/*") as $file) {
-//	echo "file is $file\n";
+		foreach (glob($this->params['temp'] . "/*.json") as $file) {
 			$s = file_get_contents($file);
 
 			$this->confs[$file] = json_decode($s);
 		}
-		echo "All config: " . print_r($this->confs,true) . "\n";
+//		echo "All config: " . print_r($this->confs,true) . "\n";
 	}
 
 	/**
 	 * Return the timestamp of the next scheduled action to be executed.
 	 * @return void
-	 * @todo This can be removed
 	 */
 	function determineNextEventFromSchedule() {
 		$result = 0;
@@ -113,51 +104,14 @@ class ChronosDaemon {
 
 		$start = strtotime($timeSpec->startTime);
 
-		if ($start > $baseTime) {
-			$prev = null;
-			$next = $start;
-		}
-		else {
-			$delta = $baseTime - $start; // difference between start and now.
-			$t = $delta % $period;
-			$prev = $baseTime - $t;
-			$next = $prev + $period;
-		}
+		if ($start > $baseTime) return array("prev" => null, "next" => $start);  // start in future
 
-		// Take into account byday, byhour, byminute. We just apply these to prev (if defined) and next. If either
-		// doesn't match any of the constraints, just set them to null rather than trying to work out the next
-		// time, since it will be out of range.
-		$next = $this->filterByTimespec($next, $timeSpec);
-		$prev = $this->filterByTimespec($prev, $timeSpec);
-
+		// @todo take into account byday, byhour, byminute
+		$delta = $baseTime - $start; // difference between start and now.
+		$t = $delta % $period;
+		$prev = $baseTime - $t;
+		$next = $prev + $period;
 		return array("prev" => $prev, "next" => $next);
-	}
-
-	/**
-	 * Filter a time by the byday, byhour and byminute options of $timeSpec, as appropriate.
-	 * If a filter is present and the time fails to meet it's condition, return null. Otherwise
-	 * return $time.
-	 * @param $time
-	 * @param $timeSpec
-	 * @return void
-	 */
-	function filterByTimespec($time, $timeSpec) {
-		$bits = getdate($time);
-		if (isset($timeSpec->byday)) {
-			if (!is_array($timeSpec->byday)) return null; // don't match. this should not happen but protects against bad data.
-			$days = array("su","mo","tu","we","th","fr","sa"); // 0=sunday
-			$day = $days[$bits["wday"]];
-			if (!in_array($day, $timeSpec->byday)) return null;
-		}
-		if (isset($timeSpec->byhour)) {
-			if (!is_array($timeSpec->byhour)) return null;
-			if (!in_array($bits["hours"], $timeSpec->byhour)) return null;
-		}
-		if (isset($timeSpec->byminute)) {
-			if (!is_array($timeSpec->byminute)) return null;
-			if (!in_array($bits["minutes"], $timeSpec->byminute)) return null;
-		}
-		return $time;
 	}
 
 	/**
@@ -186,7 +140,7 @@ class ChronosDaemon {
 				$np = $this->determinePrevNextRecurrence($t, $now);
 				echo "(" . date("H:i:s", $np["prev"]) . "," . date("H:i:s", $np["next"]) . ") at " . date("H:i:s", $now) . "\n";
 
-				if (isset($np["next"]) && $np["next"] == $now) $execute = true;
+				if ($np["next"] == $now) $execute = true;
 				else if ($np["prev"] && $np["prev"] >= ($now - $this->params["tolerance"])) {
 					// If the previous scheduled execution point is defined, and is within the tolerance for execution,
 					// and its last execution time is less than the previous scheduled execution, then we haven't executed
@@ -284,6 +238,9 @@ class ChronosDaemon {
 			die();
 		}
 
+		// Create the temp folder if it doesn't exist
+		if (!is_dir($this->params['temp'])) mkdir($this->params['temp']);
+
 		// Real work starts here
 		$this->refreshActionStructure();
 //		echo "time now is " . print_r(time(), true) . "\n";
@@ -292,18 +249,33 @@ class ChronosDaemon {
 //		echo "nextRefreshTime is " . print_r($nextRefreshTime, true) . "\n";
 
 		$endTime = $this->params["time_limit"] > 0 ? time() + $this->params["time_limit"] : false;
-		$bedtime = $this->params["resolution"];
-
-// echo "start time is " . date("H:i:s", time()) . "\n";
-// echo "end time is " . date("H:i:s", $endTime) . "\n";
-
-		echo "about to start\n";
+//echo "start time is " . date("H:i:s", time()) . "\n";
+//echo "end time is " . date("H:i:s", $endTime) . "\n";
 
 		while(true) {
+//			$nextActionTime = $this->determineNextEventFromSchedule();
+////			echo "nextActionTime is " . print_r($nextActionTime,true) . "\n";
+////			echo "nextRefreshTime is " . print_r($nextRefreshTime, true) . "\n";
+////			echo "time now is " . print_r(time(), true) . "\n";
+
+			// maybe there are no actions yet
+//			if ($nextActionTime == 0)
+//				$waitUntil = $nextRefreshTime;
+//			else
+//				$waitUntil = min($nextActionTime, $nextRefreshTime);
+
+			// only sleep if we're not once-only.
+//			if (!$this->params["once_only"]) {
+//				$s = $waitUntil - time();
+//				if ($s < 1) $s = 1;
+//				sleep($s);
+//			}
+
 			// OK, when we wake up, we need to process any scheduled actions that need to be executed now.
 			$this->executeDueActions();
 
 			if ($endTime && $endTime < time()) break;
+//			if ($this->params["once_only"]) break;
 
 			// If we are due to refresh the schedule from the file system, do that now.
 			if (time() > $nextRefreshTime) {
@@ -311,9 +283,7 @@ class ChronosDaemon {
 				$nextRefreshTime = time() + $this->params["config_refresh"];
 			}
 
-			// time for milk
-			sleep($bedtime);
-			// time for coffee
+			sleep(2);
 		}
 	}
 }
@@ -321,3 +291,11 @@ class ChronosDaemon {
 echo "Starting daemon\n";
 $daemon = new ChronosDaemon();
 $daemon->execute($argv);
+
+/**----------------------------------------------------------------------------------------------------**/
+/*
+
+// Filter out those that are not in this process's execution window. While we do it, we augment the remaining
+// conf entries with addition properties for later.
+
+*/
