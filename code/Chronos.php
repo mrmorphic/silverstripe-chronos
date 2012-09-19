@@ -37,13 +37,12 @@ class Chronos extends Controller {
 	 * Remove any scheduled action that has the the specified identifier. It may be more than one.
 	 */
 	static function remove($identifier) {
-		// @todo Create a file glob based on the identifier and remove those files.
-		// @todo This may be different on unix and windows, because windows tempnam only uses
-		// @todo the first 3 characters of the identifier, and not sure what the case is.
+		foreach (glob(self::config_directory() . "/" . $identifier . ".X*.json") as $file)
+			unlink($file);
 	}
 
 	/**
-	 * Replace any scheduled actions with the old identiifer with a new set of actions, optionally
+	 * Replace any scheduled actions with the old identifer with a new set of actions, optionally
 	 * with a new identifier. If $newIdentifier is not supplied, the actions are added with $oldIdentifer.
 	 */
 	static function replace($actions, $oldIdentifier, $newIdentifier = null) {
