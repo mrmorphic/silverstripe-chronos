@@ -55,11 +55,31 @@ class Chronos extends Controller {
 		file_put_contents($file, $action->serialise());
 	}
 
+	/**
+	 * Generate a json file name. Creates a file name with randomisation, micro time and PID to ensure uniqueness.
+	 * We're not using tempnam because it is braindamaged and doesn't let us add a file extension.
+	 */
 	static function action_file_name($action) {
-		return tempnam(
-			self::config_directory(),
-			(isset($action->groupIdentifier) ? $action->groupIdentifier : "misc") . "_"
-		);
+		$filename = self::config_directory();
+		$filename .= "/";
+		if (isset($action->identifier)) $filename .= $action->identifier;
+		else $filename .= 'misc';
+
+		$filename .= '.X' . base_convert(rand(), 10, 36);
+
+		$mt = microtime();
+		$parts = explode(" ", $mt);
+
+		$filename .= '.' . base_convert($parts[1], 10, 36);
+		$filename .= base_convert($parts[0], 10, 36);
+
+		$filename .= '.' . getmypid();
+		$filename .= '.json';
+		return $filename;
+//		return tempnam(
+//			self::config_directory(),
+//			(isset($action->identifier) ? $action->identifier : "misc") . "_"
+//		) . ".json";
 	}
 
 	/**
@@ -111,6 +131,32 @@ class Chronos extends Controller {
 			$instance->$method($action->parameters);
 		}                                                                                
 	}
+
+	/**
+	 * List the schedule. Goes through the files in the schedule and deserialises the files.
+	 * @return Array 		An array of ChronosScheduledAction
+	 */
+	static function list_scheduled_actions() {
+		$result = array();
+
+		// iterate over all files.
+		$dir = self::get_config_dir();
+		$handle = opendir($dir);
+		while (false !== ($file = readdir($handle))) {
+			$extension = strtolower(substr(strrchr($file, '.'), 1));
+			if ($extension == 'json') {
+				$data = file_get_contents($dir . "/" . $file);
+				$action = ChronosScheduledAction::json_decode_typed($data);
+				if ($action) $result[] = $action;
+			}
+		}
+
+		return $result;
+	}
+
+	function listRecentActions() {
+	
+	}
 }
 
 /**
@@ -135,6 +181,7 @@ class ChronosScheduledAction {
 	 * Specifies the way the action is executed. "url" indicates that the action is invoked by visiting a
 	 * given URL. "method" indicates that either a static or instance method is called.
 	 * @var String $actionType  "url" or "method"
+	 */
 	var $actionType;
 
 	/**
@@ -181,7 +228,7 @@ class ChronosScheduledAction {
 	 * uses.
 	 */
 	function serialise() {
-		return json_encode($this);
+		return self::json_encode_typed($this);
 	}
 
 	/**
@@ -220,19 +267,120 @@ class ChronosScheduledAction {
 				break;
 		}
 	}
+	static function _escape($s) {
+		return addcslashes($s, "\v\t\n\r\f\"\\/");
+	}
+
+	static function json_encode_typed($val) {
+		if (is_null($val)) return "null";
+		if (is_bool($val)) return $val ? "true" : "false";
+		if (is_string($val)) return "\"" . self::_escape($val) . "\"";
+		if (is_object($val)) {
+			$vars = get_object_vars($val);
+			$a = array();
+			$class = get_class($val);
+			$a[] = "\"_className\":\"{$class}\"";
+			foreach ($vars as $key => $val) {
+				$a[] = "\"" . self::_escape($key) . "\":" . self::json_encode_typed($val);
+			}
+			return "{" . implode($a, ",") . "}";
+		}
+		if (is_array($val)) {
+			$obj = false;
+			$a = array();
+			foreach($val as $key => $value) {
+				if (!is_numeric($key)) $obj = true;
+				$a[$key] = self::json_encode_typed($value);
+			}
+			if ($obj) {
+				foreach ($a as $k => $v) {
+					$a[$k] = "\"" . self::_escape($k) . "\":" . $v;
+				}
+				return "{" . implode($a, ",") . "}";
+			}
+			else {
+				return "[" . implode($a, ",") . "]";
+			}
+		}
+		return $val;
+	}
+
+	static function json_decode_typed($s) {
+		// decode using json_decode, which gives us stdClass for all objects.
+		$o = json_decode($s);
+		return self::json_decode_typed_normalise($o);
+	}
+
+	static function json_decode_typed_normalise($o) {
+		if (is_object($o)) {
+			// create a new instance
+			if (!isset($o->_className)) return $o; // cannot deal with untyped
+			$class = $o->_className;
+			$new = new $class();
+			foreach ($o as $k => $v) {
+				$new->$k = self::json_decode_typed_normalise($v);
+			}
+			return $new;
+		}
+		if (is_array($o)) {
+			$a = array();
+			foreach ($o as $item) {
+				$a[] = self::json_decode_typed_normalise($item);
+			}
+			return $a;
+		}
+		return $o;
+	}
+
+	/**
+	 * Generate a presentable summary of the action.
+	 * @return map 		Returns a map with the following keys:
+	 *						identifier
+	 *						action
+	 *						when
+	 */
+	function summary() {
+		$result = array();
+		$result["identifier"] = $this->identifier ? $this->identifier : "(unidentified)";
+
+		$s = '';
+		switch ($this->actionType) {
+			case "url":
+				$s .= " hit URL " . $this->url;
+				break;
+			case "method":
+				$s .= " method " . $this->method;
+				break;
+		}
+		$result['action'] = $s;
+
+		$result['when'] = $this->timeSpecification ? $this->timeSpecification->summary() : '(no time specification)';
+
+		return $result;
+	}
 }
 
 class ChronosTimeSpecification {
 	var $type;
+
+	function summary() {
+		return null;
+	}
 }
 
 class ChronosTimeSingle extends ChronosTimeSpecification {
 	var $time;
 
-	function __construct($time) {
+	function __construct($time = null) {
 		$this->type = "single";
-		if (strtotime($time) === FALSE) throw new Exception("Invalid absolute time specification ($time)");
-		$this->time = $time;
+		if ($time) {
+			if (strtotime($time) === FALSE) throw new Exception("Invalid absolute time specification ($time)");
+			$this->time = $time;
+		}
+	}
+
+	function summary() {
+		return "one-off at " . $this->time;
 	}
 }
 
@@ -269,9 +417,10 @@ class ChronosTimeRecurring extends ChronosTimeSpecification {
 	 * @throws Exception
 	 * @param $params	A map of keys to values that are used to initialise the spec.
 	 */
-	function __construct($params) {
-		echo "constructing recurring\n";
+	function __construct($params = null) {
 		$this->type = "recurring";
+
+		if ($params == null) return;
 
 		if (!is_array($params)) throw new Exception("ChronosTimeRecurring expects a map of initialisation properties");
 		$params = array_change_key_case($params); // all keys to lower
@@ -316,5 +465,15 @@ class ChronosTimeRecurring extends ChronosTimeSpecification {
 				if (!is_numeric($minute) || $minute < 0 || $minute > 59) throw new Exception("ChronosTimeRecurring: invalid byMinute ($minute)");
 			}
 		}
+	}
+
+	function summary() {
+		$s = "recurring from " . $this->startTime . " " . $this->frequency;
+		if ($this->interval >= 2) $s .= " (interval 2)";
+		$s .= ", ";
+		if ($this->byDay) $s .= " days: " . implode(",", $this->byDay);
+		if ($this->byHour) $s .= " hours: " . implode(",", $this->byHour);
+		if ($this->byMinute) $s .= " minutes: " . implode(",", $this->byMinute);
+		return $s;
 	}
 }
