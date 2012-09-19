@@ -122,7 +122,9 @@ class Chronos extends Controller {
 			if (isset($action->testRunning) && $action->testRunning)
 				require_once(BASE_PATH . "/chronos/tests/ChronosTest.php");
 
-			$klass::$method($action->parameters);
+			call_user_func(array($klass, $method), $action->parameters);
+
+//			$klass::$method($action->parameters);
 		}
 		else {
 			// instance
