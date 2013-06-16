@@ -1,0 +1,18 @@
+{
+	"name": "silverstripe/chronos",
+	"type": "silverstripe-module",
+	"description": "Flexible scheduling module for SilverStripe",
+	"homepage": "https://github.com/mrmorphic/silverstripe-chronos",
+	"license": "BSD-3-Clause",
+	"keywords": ["silverstripe", "framework"],
+	"authors": [
+		{
+			"name": "Mark Stephens",
+			"homepage": "https://github.com/mrmorphic"
+		}
+	],
+	"require": {
+		"composer/installers": "*",
+		"silverstripe/framework": "3.*"
+	}
+}
